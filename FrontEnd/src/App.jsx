@@ -1,33 +1,43 @@
-import { useState } from "react";
-import { ethers } from "ethers";
+import { Routes, Route, Navigate } from 'react-router-dom'
+import { useState } from 'react'
+import Landing from './pages/Landing'
+import Dashboard from './pages/Dashboard'
 
 function App() {
-  const [account, setAccount] = useState("");
+  const [isConnected, setIsConnected] = useState(false)
+  const [adminName, setAdminName] = useState('')
 
-  const connectWallet = async () => {
-    if (!window.ethereum) {
-      alert("MetaMask not detected");
-      return;
-    }
+  const handleConnect = () => {
+    // Mock connexion — pas de MetaMask réel
+    setAdminName('Yassir Nacir')
+    setIsConnected(true)
+  }
 
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const accounts = await provider.send("eth_requestAccounts", []);
-    setAccount(accounts[0]);
-  };
+  const handleDisconnect = () => {
+    setIsConnected(false)
+    setAdminName('')
+  }
 
   return (
-    <div style={{ padding: "40px" }}>
-      <h1>DecentrAccess</h1>
-
-      <button onClick={connectWallet}>
-        Connect Wallet
-      </button>
-
-      {account && (
-        <p>Connected account: {account}</p>
-      )}
-    </div>
-  );
+    <Routes>
+      <Route
+        path="/"
+        element={
+          isConnected
+            ? <Navigate to="/dashboard" replace />
+            : <Landing onConnect={handleConnect} />
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          isConnected
+            ? <Dashboard adminName={adminName} onDisconnect={handleDisconnect} />
+            : <Navigate to="/" replace />
+        }
+      />
+    </Routes>
+  )
 }
 
-export default App;
+export default App
