@@ -21,7 +21,7 @@ contract AlertManager {
     struct AlertRule {
         bytes32  ruleId;
         string   name;           // "BRUTE_FORCE", "UNAUTHORIZED_ACCESS"
-        string   condition;      // Description humaine (ex: "failed_logins > 5 in 10min")
+        string   condition;      // Description humaine 
         Severity severity;
         bool     active;
         address  createdBy;

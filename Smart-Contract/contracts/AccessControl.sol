@@ -83,7 +83,7 @@ contract AccessControl {
         _setDefaultPermissions();
     }
 
-    // R5: Setter pour l'adresse PolicyEngine (appelé une fois après déploiement)
+    // R5: Setter pour l'adresse PolicyEngine 
     function setPolicyEngine(address _policyEngine) external onlySuperAdmin {
         require(policyEngineAddress == address(0), "AccessControl: PolicyEngine already set");
         policyEngineAddress = _policyEngine;
@@ -129,7 +129,7 @@ contract AccessControl {
     }
 
     /**
-     * @notice R3: Change le rôle d'un compte en une seule transaction (atomique)
+     * @notice R3: Change le rôle d'un compte en une seule transaction
      * @dev Évite l'état temporaire sans rôle entre revoke + grant
      */
     function changeRole(address _account, bytes32 _newRole) 

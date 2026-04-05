@@ -1,22 +1,11 @@
+// FrontEnd/src/App.jsx
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useWeb3 } from './context/Web3Context'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 
 function App() {
-  const [isConnected, setIsConnected] = useState(false)
-  const [adminName, setAdminName] = useState('')
-
-  const handleConnect = () => {
-    // Mock connexion — pas de MetaMask réel
-    setAdminName('Yassir Nacir')
-    setIsConnected(true)
-  }
-
-  const handleDisconnect = () => {
-    setIsConnected(false)
-    setAdminName('')
-  }
+  const { isConnected, address, connect, disconnect, error } = useWeb3()
 
   return (
     <Routes>
@@ -25,14 +14,14 @@ function App() {
         element={
           isConnected
             ? <Navigate to="/dashboard" replace />
-            : <Landing onConnect={handleConnect} />
+            : <Landing onConnect={connect} error={error} />
         }
       />
       <Route
         path="/dashboard"
         element={
           isConnected
-            ? <Dashboard adminName={adminName} onDisconnect={handleDisconnect} />
+            ? <Dashboard adminName={address} onDisconnect={disconnect} />
             : <Navigate to="/" replace />
         }
       />
