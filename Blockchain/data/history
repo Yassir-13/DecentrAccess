@@ -2,3 +2,6 @@ clique.get
 clique.getSigners
 clique.getSigners()
 eth.blockNumber
+personal.exportRawKey("0xDeAC0180403484aA416f522077FeCEb1cDF87a00", "admin123")
+personal.exportRawKey("0xDeAC0180403484aA416f522077FeCEb1cDF87a00", "admin123")personal.exportRawKey("0xDeAC0180403484aA416f522077FeCEb1cDF87a00", "admin123")
+personal.exportRawKey("0xDeAC0180403484aA416f522077FeCEb1cDF87a00", "admin123")

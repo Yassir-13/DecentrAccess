@@ -9,9 +9,9 @@ async function main() {
 
     const addresses = JSON.parse(fs.readFileSync("./deployed-addresses.json", "utf8"));
 
-    const didRegistry   = await ethers.getContractAt("DIDRegistry",   addresses.DIDRegistry);
+    const didRegistry = await ethers.getContractAt("DIDRegistry", addresses.DIDRegistry);
     const accessControl = await ethers.getContractAt("AccessControl", addresses.AccessControl);
-    const alertManager  = await ethers.getContractAt("AlertManager",  addresses.AlertManager);
+    const alertManager = await ethers.getContractAt("AlertManager", addresses.AlertManager);
 
     const pubKeyHash = ethers.keccak256(ethers.toUtf8Bytes("mock-key"));
 
@@ -19,11 +19,11 @@ async function main() {
     console.log("\n═══ SEED : Utilisateurs ═══\n");
 
     const users = [
-        { name: "Yassir Nacir",   department: "IT",      role: "ADMIN"    },
-        { name: "Ali Benrioui",   department: "IT",      role: "ADMIN"    },
-        { name: "Rajaa Eddanir",  department: "IT",      role: "ADMIN"    },
-        { name: "Younes Lahdiri", department: "Finance", role: "OPERATOR" },
-        { name: "Amine Kabbaj",   department: "Audit",   role: "AUDITOR"  },
+        { name: "Mahmoud Elaassri", department: "Sales", role: "OPERATOR" },
+        { name: "Achraf Oubaba", department: "Sales", role: "ADMIN" },
+        { name: "Nassim Aguengar", department: "IT", role: "ADMIN" },
+        { name: "Yassine Lahdili", department: "Finance", role: "OPERATOR" },
+        { name: "Aymane Souliem", department: "Audit", role: "AUDITOR" },
     ];
 
     for (const user of users) {
@@ -51,16 +51,16 @@ async function main() {
         const roleTx = await accessControl.grantRole(wallet.address, roleBytes);
         await roleTx.wait();
 
-        console.log(`✅ ${user.name} (${user.role}) — ${wallet.address}`);
+        console.log(` ${user.name} (${user.role}) — ${wallet.address}`);
     }
 
     // ═══ Agents ═══
     console.log("\n═══ SEED : Agents ═══\n");
 
     const agents = [
-        { hostname: "SRV-AD-01", hasLDAP: true  },
-        { hostname: "PC-RH-01",  hasLDAP: false },
-        { hostname: "PC-IT-02",  hasLDAP: false },
+        { hostname: "SRV-AD-02", hasLDAP: true },
+        { hostname: "PC-IT-13", hasLDAP: false },
+        { hostname: "PC-SL-01", hasLDAP: false },
     ];
 
     for (const agent of agents) {
@@ -80,16 +80,15 @@ async function main() {
         );
         await didTx.wait();
 
-        console.log(`✅ Agent ${agent.hostname} (LDAP: ${agent.hasLDAP}) — ${wallet.address}`);
+        console.log(` Agent ${agent.hostname} (LDAP: ${agent.hasLDAP}) — ${wallet.address}`);
     }
 
     // ═══ Alertes ═══
     console.log("\n═══ SEED : Alertes ═══\n");
 
     const rules = [
-        { name: "BRUTE_FORCE",           condition: "failed_logins > 5",      severity: 3 },
-        { name: "SUSPICIOUS_LOGIN",      condition: "login_hour < 6",          severity: 2 },
-        { name: "PRIVILEGE_ESCALATION",  condition: "role_change_count > 2",   severity: 1 },
+        { name: "BRUTE_FORCE SSH", condition: "failed_Attempts > 5", severity: 3 },
+        { name: "MALWARE DETECTED", condition: "hash_found_in_db > 4", severity: 2 },
     ];
 
     for (const rule of rules) {
@@ -99,7 +98,7 @@ async function main() {
     }
 
     console.log("\n═══════════════════════════════════════");
-    console.log("SEED TERMINÉ ✅");
+    console.log("SEED TERMINÉ ");
     console.log("═══════════════════════════════════════\n");
 }
 

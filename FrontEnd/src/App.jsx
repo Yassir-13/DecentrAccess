@@ -29,7 +29,7 @@ function App() {
         display: 'flex', flexDirection: 'column', justifyContent: 'center',
         alignItems: 'center', height: '100vh', background: '#0a0e1a', color: '#fff', gap: '1rem'
       }}>
-        <h2>⛔ Accès refusé</h2>
+        <h2>Accès refusé</h2>
         <p style={{ color: '#aaa' }}>Ce wallet n'est pas enregistré dans DecentrAccess.</p>
         <button onClick={disconnect} style={{
           padding: '0.5rem 1.5rem', borderRadius: '8px',
