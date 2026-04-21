@@ -512,3 +512,7 @@ body {
     grid-template-columns: 1fr;
   }
 }
+/* À ajouter dans FrontEnd/src/index.css ou App.css */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

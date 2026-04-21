@@ -3,6 +3,8 @@ import blockchain from './blockchain/client.js'
 import { initP2P, subscribe, getTopics } from './p2p/node.js'
 import { handleAction } from './handlers/actionHandler.js'
 import { startHeartbeat, stopHeartbeat } from './handlers/heartbeat.js'
+import { initIPFS, stopIPFS } from './ipfs/node.js'
+import { startWsServer, stopWsServer } from './ws/server.js'
 
 const TOPICS = getTopics()
 
@@ -25,19 +27,24 @@ async function main() {
     console.log('[Init] Enregistrement dans AgentRegistry...')
     await blockchain.registerAgent()
 
-    // ═══ 3. Init P2P ═══
+    // ═══ 3. Init IPFS ═══
+    console.log('[Init] Démarrage nœud IPFS...')
+    await initIPFS()
+
+    // ═══ 4. Init P2P ═══
     console.log('[Init] Démarrage nœud P2P...')
     const p2pNode = await initP2P()
-
-    // Mettre à jour le peerId dans AgentRegistry
-    const peerId = p2pNode.peerId.toString()
+    const peerId  = p2pNode.peerId.toString()
     console.log(`[Init] PeerID : ${peerId}`)
 
-    // ═══ 4. Écoute des actions ═══
+    // ═══ 5. Démarrage serveur WebSocket (Dashboard) ═══
+    startWsServer()
+
+    // ═══ 6. Écoute des actions P2P (autres agents) ═══
     subscribe(TOPICS.ACTIONS, handleAction)
     console.log('[Init] ✅ En écoute sur le topic actions')
 
-    // ═══ 5. Démarrage heartbeat ═══
+    // ═══ 7. Démarrage heartbeat ═══
     await startHeartbeat()
 
     console.log('\n[Init] ✅ Agent opérationnel — en attente d\'actions...\n')
@@ -46,6 +53,8 @@ async function main() {
     process.on('SIGINT', async () => {
       console.log('\n[Shutdown] Arrêt en cours...')
       stopHeartbeat()
+      stopWsServer()
+      await stopIPFS()
       await p2pNode.stop()
       console.log('[Shutdown] Agent arrêté proprement')
       process.exit(0)

@@ -5,7 +5,7 @@ const menuItems = [
   { icon: '', label: 'Users', id: 'users' },
   { icon: '', label: 'Groups', id: 'groups' },
   { icon: '', label: 'Computers', id: 'computers' },
-  { icon: '', label: 'Audit Logs', id: 'audit' },
+  { icon: '', label: 'Audit Logs', id: 'auditlogs' },
   { icon: '', label: 'Policies', id: 'policies' },
   { icon: '', label: 'Alerts', id: 'alerts' },
   { icon: '', label: 'Reputation', id: 'reputation' },

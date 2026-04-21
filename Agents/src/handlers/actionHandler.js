@@ -1,6 +1,10 @@
 // Agents/src/handlers/actionHandler.js
+import { ethers } from 'ethers'
 import blockchain from '../blockchain/client.js'
 import { publish, getTopics } from '../p2p/node.js'
+import { storeReport } from '../ipfs/node.js'
+import { broadcastResult } from '../ws/server.js'
+import * as ldap from '../ldap/client.js'
 import config from '../../config.js'
 
 const TOPICS = getTopics()
@@ -12,7 +16,8 @@ export async function handleAction(data) {
     // ═══ 1. Vérification on-chain ═══
     const isValid = await blockchain.isValidSigner(data.signer, data.actionType)
     if (!isValid) {
-      console.warn(`[Action] ❌ Signer invalide — action ignorée`)
+      console.warn(`[Action] ❌ Signer invalide`)
+      broadcastResult({ status: 'failed', error: 'Signer invalide ou permission refusée', actionType: data.actionType })
       return
     }
     console.log(`[Action] ✅ Signer validé on-chain`)
@@ -20,7 +25,8 @@ export async function handleAction(data) {
     // ═══ 2. Vérification signature ═══
     const isSignatureValid = verifySignature(data)
     if (!isSignatureValid) {
-      console.warn(`[Action] ❌ Signature invalide — action ignorée`)
+      console.warn(`[Action] ❌ Signature invalide`)
+      broadcastResult({ status: 'failed', error: 'Signature cryptographique invalide', actionType: data.actionType })
       return
     }
     console.log(`[Action] ✅ Signature vérifiée`)
@@ -49,52 +55,117 @@ export async function handleAction(data) {
 
     console.log(`[Action] ✅ Élu pour l'exécution`)
 
-    // ═══ 4. Exécution ═══
+    // ═══ 4. Exécution LDAP ═══
     const result = await executeAction(data)
 
-    // ═══ 5. Broadcast résultat ═══
-    await publish(TOPICS.RESULTS, {
+    // ═══ 5. IPFS + AuditLog ═══
+    let ipfsCID = null
+    let txHash  = null
+
+    if (result.success) {
+      try {
+        const report = {
+          actionHash,
+          actionType: data.actionType,
+          payload:    data.payload,
+          signer:     data.signer,
+          executor:   myAddress,
+          result,
+          timestamp:  Date.now(),
+          network:    `geth-poa-${config.chainId}`
+        }
+
+        ipfsCID = await storeReport(report)
+        console.log(`[Action] ✅ Rapport IPFS — CID: ${ipfsCID}`)
+
+        txHash = await blockchain.logAction(actionHash, data.actionType, ipfsCID, data.signature)
+        console.log(`[Action] ✅ AuditLog ancré — tx: ${txHash}`)
+
+      } catch (err) {
+        console.error(`[Action] ⚠️ Erreur IPFS/AuditLog :`, err.message)
+      }
+    }
+
+    // ═══ 6. Broadcast résultat ═══
+    const resultData = {
       actionHash,
       actionType: data.actionType,
       status:     result.success ? 'success' : 'failed',
-      error:      result.error || null,
+      error:      result.error  || null,
       executor:   myAddress,
+      ipfsCID,
+      txHash,
       timestamp:  Date.now()
-    })
+    }
+
+    broadcastResult(resultData)
+
+    try {
+      await publish(TOPICS.RESULTS, resultData)
+    } catch (err) {
+      console.warn(`[Action] P2P broadcast ignoré :`, err.message)
+    }
 
     console.log(`[Action] Résultat broadcasté — status: ${result.success ? 'success' : 'failed'}`)
 
   } catch (err) {
     console.error(`[Action] Erreur inattendue :`, err.message)
+    broadcastResult({ status: 'failed', error: err.message, actionType: data.actionType })
   }
 }
 
+// ═══ Exécution LDAP réelle ═══
 async function executeAction(data) {
-  console.log(`[Action] Exécution : ${data.actionType}`)
+  console.log(`[LDAP] Exécution : ${data.actionType}`)
 
-  switch (data.actionType) {
-    case 'CREATE_USER':
-      console.log(`[LDAP] → createUser(${data.payload?.username})`)
-      return { success: true }
-    case 'DELETE_USER':
-      console.log(`[LDAP] → deleteUser(${data.payload?.username})`)
-      return { success: true }
-    case 'MODIFY_USER':
-      console.log(`[LDAP] → modifyUser(${data.payload?.username})`)
-      return { success: true }
-    case 'RESET_PASSWORD':
-      console.log(`[LDAP] → resetPassword(${data.payload?.username})`)
-      return { success: true }
-    case 'CREATE_GROUP':
-      console.log(`[LDAP] → createGroup(${data.payload?.groupName})`)
-      return { success: true }
-    default:
-      console.warn(`[Action] Type inconnu : ${data.actionType}`)
-      return { success: false, error: `Action inconnue : ${data.actionType}` }
+  // Si pas d'accès LDAP → mock
+  if (!config.hasLDAP) {
+    console.log(`[LDAP] Mode mock (hasLDAP=false)`)
+    return { success: true, details: `Mock : ${data.actionType}` }
+  }
+
+  try {
+    switch (data.actionType) {
+      case 'CREATE_USER': {
+        const res = await ldap.createUser(data.payload)
+        return { success: true, details: res }
+      }
+      case 'DELETE_USER': {
+        const res = await ldap.deleteUser(data.payload)
+        return { success: true, details: res }
+      }
+      case 'MODIFY_USER': {
+        const res = await ldap.modifyUser(data.payload)
+        return { success: true, details: res }
+      }
+      case 'RESET_PASSWORD': {
+        const res = await ldap.resetPassword(data.payload)
+        return { success: true, details: res }
+      }
+      case 'CREATE_GROUP': {
+        const res = await ldap.createGroup(data.payload)
+        return { success: true, details: res }
+      }
+      default:
+        console.warn(`[LDAP] Type inconnu : ${data.actionType}`)
+        return { success: false, error: `Action inconnue : ${data.actionType}` }
+    }
+  } catch (err) {
+    console.error(`[LDAP] Erreur exécution :`, err.message)
+    return { success: false, error: err.message }
   }
 }
 
+// ═══ Vérification signature ═══
 function verifySignature(data) {
-  // TODO : ethers.verifyMessage() — à implémenter
-  return true
+  try {
+    const message   = JSON.stringify({ actionType: data.actionType, payload: data.payload })
+    const recovered = ethers.verifyMessage(message, data.signature)
+    const valid     = recovered.toLowerCase() === data.signer.toLowerCase()
+    if (!valid) console.warn(`[Signature] Récupéré: ${recovered} ≠ attendu: ${data.signer}`)
+    return valid
+  } catch (err) {
+    console.warn(`[Signature] Erreur :`, err.message)
+    return false
+  }
 }

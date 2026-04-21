@@ -21,8 +21,9 @@ const AGENT_REGISTRY_ABI = [
   "function electExecutor(bytes32 actionId) view returns (address)"
 ]
 
+// ✅ ABI corrigée — correspond exactement à AuditLog.sol
 const AUDIT_LOG_ABI = [
-  "function logAction(bytes32 actionHash, string memory ipfsCID, bytes memory signature) external"
+  "function logAction(bytes32 _actionHash, string memory _actionType, string memory _ipfsCID, bytes memory _signature) external"
 ]
 
 class BlockchainClient {
@@ -84,13 +85,16 @@ class BlockchainClient {
     }
   }
 
-  async logAction(actionHash, ipfsCID, signature) {
+  // ✅ Signature correcte — actionType ajouté
+  async logAction(actionHash, actionType, ipfsCID, signature) {
     try {
-      const tx = await this.auditLog.logAction(actionHash, ipfsCID, signature)
-      await tx.wait()
-      console.log(`[Blockchain] Action ancrée — CID: ${ipfsCID} ✅`)
+      const tx = await this.auditLog.logAction(actionHash, actionType, ipfsCID, signature)
+      const receipt = await tx.wait()
+      console.log(`[Blockchain] ✅ AuditLog ancré — tx: ${receipt.hash}`)
+      return receipt.hash
     } catch (err) {
       console.error(`[Blockchain] Erreur AuditLog :`, err.message)
+      throw err
     }
   }
 }
