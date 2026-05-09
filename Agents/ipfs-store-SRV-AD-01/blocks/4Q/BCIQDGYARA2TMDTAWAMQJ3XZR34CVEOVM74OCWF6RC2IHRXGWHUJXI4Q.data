@@ -1,0 +1,1 @@
+{"actionHash":"0xc54d22e3d5cd4b03defeeb7555be812e15f8b56f69ddb9a7448427e95b5c28d3","actionType":"DELETE_USER","payload":{"username":"Nassim"},"signer":"0xDeAC0180403484aA416f522077FeCEb1cDF87a00","executor":"0x7df0b466a2ac9fe1fbfe4e08fdd7f6a7ddc66fb0","result":{"success":true,"details":{"success":true}},"timestamp":1778294825950,"network":"geth-poa-1337"}

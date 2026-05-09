@@ -55,33 +55,44 @@ async function main() {
     }
 
     // ═══ Agents ═══
-    console.log("\n═══ SEED : Agents ═══\n");
+console.log("\n═══ SEED : Agents ═══\n");
 
-    const agents = [
-        { hostname: "SRV-AD-02", hasLDAP: true },
-        { hostname: "PC-IT-13", hasLDAP: false },
-        { hostname: "PC-SL-01", hasLDAP: false },
-    ];
+// Agent réel — wallet défini dans Agents/.env
+const realAgentKey = "0x072612d732b97e224ffdba0993da053ae8d29b662cd4417bc49a133357911c0b";
+const realAgent = new ethers.Wallet(realAgentKey).connect(provider);
 
-    for (const agent of agents) {
-        const wallet = ethers.Wallet.createRandom().connect(provider);
+const fundTx = await deployer.sendTransaction({
+    to: realAgent.address,
+    value: ethers.parseEther("1.0")
+});
+await fundTx.wait();
 
-        const fundTx = await deployer.sendTransaction({
-            to: wallet.address,
-            value: ethers.parseEther("1.0")
-        });
-        await fundTx.wait();
+const did = `did:da:${realAgent.address}`;
+const metadata = JSON.stringify({ hostname: "SRV-AD-01", hasLDAP: true });
 
-        const did = `did:da:${wallet.address}`;
-        const metadata = JSON.stringify({ hostname: agent.hostname, hasLDAP: agent.hasLDAP });
+const didTx = await didRegistry.connect(realAgent).registerDID(
+    did, 1, pubKeyHash, metadata
+);
+await didTx.wait();
+console.log(` Agent SRV-AD-01 — ${realAgent.address}`);
 
-        const didTx = await didRegistry.connect(wallet).registerDID(
-            did, 1, pubKeyHash, metadata
-        );
-        await didTx.wait();
+// Agents fictifs supplémentaires
+const fakeAgents = [
+    { hostname: "SRV-AD-02", hasLDAP: false },
+    { hostname: "PC-IT-13",  hasLDAP: false },
+];
 
-        console.log(` Agent ${agent.hostname} (LDAP: ${agent.hasLDAP}) — ${wallet.address}`);
-    }
+for (const agent of fakeAgents) {
+    const wallet = ethers.Wallet.createRandom().connect(provider);
+    const fundTx2 = await deployer.sendTransaction({ to: wallet.address, value: ethers.parseEther("1.0") });
+    await fundTx2.wait();
+    const didTx2 = await didRegistry.connect(wallet).registerDID(
+        `did:da:${wallet.address}`, 1, pubKeyHash,
+        JSON.stringify({ hostname: agent.hostname, hasLDAP: agent.hasLDAP })
+    );
+    await didTx2.wait();
+    console.log(` Agent ${agent.hostname} — ${wallet.address}`);
+}
 
     // ═══ Alertes ═══
     console.log("\n═══ SEED : Alertes ═══\n");

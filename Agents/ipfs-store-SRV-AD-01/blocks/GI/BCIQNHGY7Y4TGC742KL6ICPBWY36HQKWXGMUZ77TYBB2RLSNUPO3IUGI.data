@@ -1,0 +1,1 @@
+{"actionHash":"0x2b31b2a21beb613d5ebfd3331f8fd644b428fe50e03e8971d52b3ddeac148dc2","actionType":"ADD_TO_GROUP","payload":{"groupName":"GRP-TEST-2","username":"Nacir"},"signer":"0xDeAC0180403484aA416f522077FeCEb1cDF87a00","executor":"0x7df0b466a2ac9fe1fbfe4e08fdd7f6a7ddc66fb0","result":{"success":true,"details":{"success":true}},"timestamp":1778294395375,"network":"geth-poa-1337"}

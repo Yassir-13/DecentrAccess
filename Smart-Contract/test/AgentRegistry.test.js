@@ -75,7 +75,7 @@ describe("AgentRegistry", function () {
 
         it("devrait marquer offline après timeout", async function () {
             await agentRegistry.connect(agent1).registerAgent("PC-01", false, "Qm");
-            await time.increase(361); // 6 min > 5 min timeout
+            await time.increase(601); // 6 min > 5 min timeout
             expect(await agentRegistry.isAgentOnline(agent1.address)).to.be.false;
         });
     });
@@ -129,7 +129,7 @@ describe("AgentRegistry", function () {
         it("devrait exclure les agents offline", async function () {
             await agentRegistry.connect(agent1).registerAgent("PC-01", false, "Qm");
             await agentRegistry.connect(agent2).registerAgent("SRV-AD", true, "Qm");
-            await time.increase(361); // tous offline
+            await time.increase(601); // tous offline
             await agentRegistry.connect(agent1).heartbeat(); // agent1 revient
 
             const online = await agentRegistry.getOnlineAgents();
@@ -176,7 +176,7 @@ describe("AgentRegistry", function () {
         });
 
         it("devrait échouer si aucun exécutant en ligne", async function () {
-            await time.increase(361);
+            await time.increase(601);
             const actionId = ethers.keccak256(ethers.toUtf8Bytes("action"));
             await expect(
                 agentRegistry.electExecutor(actionId)

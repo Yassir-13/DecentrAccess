@@ -24,6 +24,7 @@
     "solidity-coverage": "^0.8.0"
   },
   "dependencies": {
-    "dotenv": "^17.4.0"
+    "dotenv": "^17.4.0",
+    "ldapts": "^8.1.7"
   }
 }

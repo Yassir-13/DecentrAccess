@@ -1,2 +1,15 @@
-node_modules/ 
-.env 
+node_modules/
+.env
+
+# Binaires compilés
+dist/
+installer/
+
+# Stockage IPFS local
+ipfs-store/
+
+# Binaires Windows
+*.exe
+
+Agents/installer/node/node.exe
+

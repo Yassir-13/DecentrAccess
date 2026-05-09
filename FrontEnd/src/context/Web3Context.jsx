@@ -114,10 +114,8 @@ export function Web3Provider({ children }) {
     console.log('[sendAction] Signature MetaMask en cours...')
     const signature = await signer.signMessage(message)
 
-    // 3. Construire l'actionHash (identifiant unique de cette action)
-    const actionHash = ethers.keccak256(
-      ethers.toUtf8Bytes(message + Date.now().toString())
-    )
+    // 3. Construire l'actionHash (identifiant unique déterministe)
+    const actionHash = ethers.keccak256(ethers.toUtf8Bytes(message))
 
     // 4. Construire la payload complète
     const actionData = {

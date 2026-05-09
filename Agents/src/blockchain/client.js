@@ -29,12 +29,12 @@ const AUDIT_LOG_ABI = [
 class BlockchainClient {
   constructor() {
     this.provider = new ethers.JsonRpcProvider(config.rpcUrl)
-    this.wallet   = new ethers.Wallet(config.privateKey, this.provider)
+    this.wallet = new ethers.Wallet(config.privateKey, this.provider)
 
-    this.didRegistry   = new ethers.Contract(config.contracts.DIDRegistry,   DID_REGISTRY_ABI,   this.wallet)
+    this.didRegistry = new ethers.Contract(config.contracts.DIDRegistry, DID_REGISTRY_ABI, this.wallet)
     this.accessControl = new ethers.Contract(config.contracts.AccessControl, ACCESS_CONTROL_ABI, this.wallet)
     this.agentRegistry = new ethers.Contract(config.contracts.AgentRegistry, AGENT_REGISTRY_ABI, this.wallet)
-    this.auditLog      = new ethers.Contract(config.contracts.AuditLog,      AUDIT_LOG_ABI,      this.wallet)
+    this.auditLog = new ethers.Contract(config.contracts.AuditLog, AUDIT_LOG_ABI, this.wallet)
 
     console.log(`[Blockchain] Wallet agent : ${this.wallet.address}`)
   }

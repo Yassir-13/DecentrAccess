@@ -19,6 +19,7 @@ export default {
     ADStateAnchor:     process.env.AD_STATE_ANCHOR,
     ReputationScore:   process.env.REPUTATION_SCORE,
     EmergencyRecovery: process.env.EMERGENCY_RECOVERY,
+    FaucetManager:     process.env.FAUCET_MANAGER,
   },
 
   ldap: {
@@ -26,5 +27,9 @@ export default {
     baseDN:   process.env.LDAP_BASE_DN,
     user:     process.env.LDAP_USER,
     password: process.env.LDAP_PASSWORD,
+    // LDAPS natif (port 636) — rejectUnauthorized=false pour cert auto-signé en labo
+    tlsOptions: {
+      rejectUnauthorized: process.env.LDAP_REJECT_UNAUTHORIZED === 'true'
+    }
   }
 }

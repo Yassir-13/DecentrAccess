@@ -197,4 +197,186 @@ describe("AccessControl", function () {
             expect(await accessControl.canPerform(operator1.address, "DELETE_USER")).to.be.true;
         });
     });
+
+    // ═══════════════════════════════════════════════════
+    // B6 — Bootstrap Mode (nouveaux tests)
+    // ═══════════════════════════════════════════════════
+    describe("Bootstrap Mode (B6)", function () {
+
+        it("bootstrapMode devrait être true au déploiement", async function () {
+            expect(await accessControl.bootstrapMode()).to.be.true;
+        });
+
+        it("SUPER_ADMIN peut grantRole en bootstrap", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            await expect(
+                accessControl.grantRole(admin1.address, ADMIN)
+            ).to.not.be.reverted;
+            expect(await accessControl.hasRole(admin1.address, ADMIN)).to.be.true;
+        });
+
+        it("non-SUPER_ADMIN ne peut pas grantRole en bootstrap", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            // admin1 n'a pas encore de rôle — tente quand même
+            await expect(
+                accessControl.connect(admin1).grantRole(operator1.address, ADMIN)
+            ).to.be.revertedWith("AccessControl: not SUPER_ADMIN");
+        });
+
+        it("bootstrap se ferme automatiquement après 3 admins", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            const signers = await ethers.getSigners();
+            const admin2 = signers[5];
+            const admin3 = signers[6];
+
+            const pubKeyHash = ethers.keccak256(ethers.toUtf8Bytes("key"));
+            await didRegistry.connect(admin2).registerDID("did:da:admin2", 0, pubKeyHash, "{}");
+            await didRegistry.connect(admin3).registerDID("did:da:admin3", 0, pubKeyHash, "{}");
+
+            await accessControl.grantRole(admin1.address, ADMIN);
+            expect(await accessControl.bootstrapMode()).to.be.true;
+
+            await accessControl.grantRole(admin2.address, ADMIN);
+            expect(await accessControl.bootstrapMode()).to.be.true;
+
+            // Le 3ème admin ferme le bootstrap
+            await expect(
+                accessControl.grantRole(admin3.address, ADMIN)
+            ).to.emit(accessControl, "BootstrapEnded");
+
+            expect(await accessControl.bootstrapMode()).to.be.false;
+        });
+
+        it("SUPER_ADMIN ne peut plus grantRole hors bootstrap", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            const signers = await ethers.getSigners();
+            const admin2 = signers[5];
+            const admin3 = signers[6];
+            const admin4 = signers[7];
+
+            const pubKeyHash = ethers.keccak256(ethers.toUtf8Bytes("key"));
+            await didRegistry.connect(admin2).registerDID("did:da:admin2", 0, pubKeyHash, "{}");
+            await didRegistry.connect(admin3).registerDID("did:da:admin3", 0, pubKeyHash, "{}");
+            await didRegistry.connect(admin4).registerDID("did:da:admin4", 0, pubKeyHash, "{}");
+
+            // Fermer le bootstrap
+            await accessControl.grantRole(admin1.address, ADMIN);
+            await accessControl.grantRole(admin2.address, ADMIN);
+            await accessControl.grantRole(admin3.address, ADMIN);
+            expect(await accessControl.bootstrapMode()).to.be.false;
+
+            // SUPER_ADMIN tente de grant directement → doit échouer
+            await expect(
+                accessControl.grantRole(admin4.address, ADMIN)
+            ).to.be.revertedWith("AccessControl: only PolicyEngine");
+        });
+
+        it("PolicyEngine peut grantRole hors bootstrap", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            const OPERATOR = await accessControl.OPERATOR();
+            const signers = await ethers.getSigners();
+            const admin2 = signers[5];
+            const admin3 = signers[6];
+
+            const pubKeyHash = ethers.keccak256(ethers.toUtf8Bytes("key"));
+            await didRegistry.connect(admin2).registerDID("did:da:admin2", 0, pubKeyHash, "{}");
+            await didRegistry.connect(admin3).registerDID("did:da:admin3", 0, pubKeyHash, "{}");
+
+            // Fermer le bootstrap
+            await accessControl.grantRole(admin1.address, ADMIN);
+            await accessControl.grantRole(admin2.address, ADMIN);
+            await accessControl.grantRole(admin3.address, ADMIN);
+            expect(await accessControl.bootstrapMode()).to.be.false;
+
+            // Déployer PolicyEngine et le lier
+            const PolicyEngine = await ethers.getContractFactory("PolicyEngine");
+            const pe = await PolicyEngine.deploy(
+                await didRegistry.getAddress(),
+                await accessControl.getAddress()
+            );
+            await pe.waitForDeployment();
+            await accessControl.setPolicyEngine(await pe.getAddress());
+
+            // Impersonate PolicyEngine pour appeler grantRole directement
+            await ethers.provider.send("hardhat_impersonateAccount", [await pe.getAddress()]);
+            await ethers.provider.send("hardhat_setBalance", [
+                await pe.getAddress(),
+                "0x1000000000000000000"
+            ]);
+            const peSigner = await ethers.getSigner(await pe.getAddress());
+
+            await expect(
+                accessControl.connect(peSigner).grantRole(operator1.address, OPERATOR)
+            ).to.not.be.reverted;
+
+            expect(await accessControl.hasRole(operator1.address, OPERATOR)).to.be.true;
+
+            await ethers.provider.send("hardhat_stopImpersonatingAccount", [await pe.getAddress()]);
+        });
+
+        it("revokeRole impossible par SUPER_ADMIN hors bootstrap", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            const signers = await ethers.getSigners();
+            const admin2 = signers[5];
+            const admin3 = signers[6];
+
+            const pubKeyHash = ethers.keccak256(ethers.toUtf8Bytes("key"));
+            await didRegistry.connect(admin2).registerDID("did:da:admin2", 0, pubKeyHash, "{}");
+            await didRegistry.connect(admin3).registerDID("did:da:admin3", 0, pubKeyHash, "{}");
+
+            await accessControl.grantRole(admin1.address, ADMIN);
+            await accessControl.grantRole(admin2.address, ADMIN);
+            await accessControl.grantRole(admin3.address, ADMIN);
+            expect(await accessControl.bootstrapMode()).to.be.false;
+
+            await expect(
+                accessControl.revokeRole(admin1.address)
+            ).to.be.revertedWith("AccessControl: only PolicyEngine");
+        });
+
+        it("changeRole impossible par SUPER_ADMIN hors bootstrap", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            const OPERATOR = await accessControl.OPERATOR();
+            const signers = await ethers.getSigners();
+            const admin2 = signers[5];
+            const admin3 = signers[6];
+
+            const pubKeyHash = ethers.keccak256(ethers.toUtf8Bytes("key"));
+            await didRegistry.connect(admin2).registerDID("did:da:admin2", 0, pubKeyHash, "{}");
+            await didRegistry.connect(admin3).registerDID("did:da:admin3", 0, pubKeyHash, "{}");
+
+            await accessControl.grantRole(admin1.address, ADMIN);
+            await accessControl.grantRole(admin2.address, ADMIN);
+            await accessControl.grantRole(admin3.address, ADMIN);
+            expect(await accessControl.bootstrapMode()).to.be.false;
+
+            await expect(
+                accessControl.changeRole(admin1.address, OPERATOR)
+            ).to.be.revertedWith("AccessControl: only PolicyEngine");
+        });
+
+        it("BootstrapEnded émet le bon adminCount", async function () {
+            const ADMIN = await accessControl.ADMIN();
+            const signers = await ethers.getSigners();
+            const admin2 = signers[5];
+            const admin3 = signers[6];
+
+            const pubKeyHash = ethers.keccak256(ethers.toUtf8Bytes("key"));
+            await didRegistry.connect(admin2).registerDID("did:da:admin2", 0, pubKeyHash, "{}");
+            await didRegistry.connect(admin3).registerDID("did:da:admin3", 0, pubKeyHash, "{}");
+
+            await accessControl.grantRole(admin1.address, ADMIN);
+            await accessControl.grantRole(admin2.address, ADMIN);
+
+            const tx = await accessControl.grantRole(admin3.address, ADMIN);
+            const receipt = await tx.wait();
+
+            const event = receipt.logs
+                .map(log => { try { return accessControl.interface.parseLog(log); } catch { return null; } })
+                .find(e => e && e.name === "BootstrapEnded");
+
+            expect(event).to.not.be.undefined;
+            expect(event.args.adminCount).to.equal(3n);
+        });
+    });
 });

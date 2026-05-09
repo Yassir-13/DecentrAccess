@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Abdelilah Bzioui",
+    "username": "A.Bzioui",
+    "department": "Finance",
+    "address": "0x05A5Ab1ab5b6e9fd46d8f9FA8e2885Fc8804eEE3",
+    "privateKey": "0x53662bf4acb634ec5597fce4ba94ed0ba094aaf7ce6796677d41bb61e2ca61cb",
+    "did": "did:da:0x05A5Ab1ab5b6e9fd46d8f9FA8e2885Fc8804eEE3"
+  },
+  {
+    "name": "Jtm Claude",
+    "username": "LEAZZZ",
+    "department": "RH",
+    "address": "0x553b68202c0F637c7e7ac51F7bE65f2864582D76",
+    "privateKey": "0x00ad1196cd71cc4dac56c63ccb589e352b68ca46585853c36db408f8d88c17f6",
+    "did": "did:da:0x553b68202c0F637c7e7ac51F7bE65f2864582D76"
+  },
+  {
+    "name": "Boughal Yassine",
+    "username": "Yassine b",
+    "department": "RH",
+    "address": "0x57d5A90ae95EF25492f3CB5B0eee52Df16736347",
+    "privateKey": "0xcc01a1a92ba01d1c10eacea0d98fd87d6e3932b7efd65da29822962c97cb8aef",
+    "did": "did:da:0x57d5A90ae95EF25492f3CB5B0eee52Df16736347"
+  }
+]

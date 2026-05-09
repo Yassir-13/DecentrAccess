@@ -15,18 +15,22 @@ import Recovery from '../components/views/Recovery'
 import StatCard from '../components/StatCard'
 import RecentActivity from '../components/RecentActivity'
 import { useStats } from '../hooks/useStats'
+import { useRecentActivity } from '../hooks/useRecentActivity'
 import { useWeb3 } from '../context/Web3Context'
-import { recentActivities } from '../data/mockData'
 import contracts from '../config/contracts.json'
+import Settings from '../components/views/Settings'
+import DIDs from '../components/views/DIDs'
 
 const AGENT_REGISTRY_ABI = [
   "function getOnlineAgentCount() view returns (uint256)"
 ]
 
 function Dashboard({ adminName, role, onDisconnect }) {
-  const [activeItem, setActiveItem] = useState('dashboard')
+  const [activeItem, setActiveItem]   = useState('dashboard')
   const [agentsOnline, setAgentsOnline] = useState('—')
+
   const { totalDIDs, activeAlerts, pendingActions, driftDetected, isLoading } = useStats()
+  const { activities, isLoading: activitiesLoading } = useRecentActivity(6)
   const { provider, isConnected } = useWeb3()
 
   // Agents Online — branché on-chain
@@ -42,7 +46,7 @@ function Dashboard({ adminName, role, onDisconnect }) {
       }
     }
     fetchAgents()
-    const interval = setInterval(fetchAgents, 30000) // refresh toutes les 30s
+    const interval = setInterval(fetchAgents, 30000)
     return () => clearInterval(interval)
   }, [provider, isConnected])
 
@@ -51,33 +55,25 @@ function Dashboard({ adminName, role, onDisconnect }) {
       icon: '🖥️',
       label: 'Agents Online',
       value: agentsOnline,
-      trend: null,
-      trendDirection: null,
-      color: 'green'
+      trend: null, trendDirection: null, color: 'green'
     },
     {
       icon: '🔥',
       label: 'Active Alerts',
       value: isLoading ? '...' : String(activeAlerts),
-      trend: null,
-      trendDirection: null,
-      color: 'orange'
+      trend: null, trendDirection: null, color: 'orange'
     },
     {
       icon: '⏳',
       label: 'Pending Actions',
       value: isLoading ? '...' : String(pendingActions),
-      trend: null,
-      trendDirection: null,
-      color: 'purple'
+      trend: null, trendDirection: null, color: 'purple'
     },
     {
       icon: '🔒',
       label: 'AD Drift Status',
       value: isLoading ? '...' : driftDetected ? '⚠️ DRIFT' : '✅ OK',
-      trend: null,
-      trendDirection: null,
-      color: 'blue'
+      trend: null, trendDirection: null, color: 'blue'
     },
   ]
 
@@ -87,19 +83,21 @@ function Dashboard({ adminName, role, onDisconnect }) {
         return (
           <DashboardHome
             stats={stats}
-            recentActivities={recentActivities}
+            recentActivities={activitiesLoading ? [] : activities}
             StatCard={StatCard}
             RecentActivity={RecentActivity}
           />
         )
-      case 'users':       return <Users />
-      case 'groups':      return <Groups />
-      case 'computers':   return <Computers />
-      case 'policies':    return <Policies />
-      case 'alerts':      return <Alerts />
-      case 'auditlogs':   return <AuditLogs />
-      case 'reputation':  return <Reputation />
-      case 'recovery':    return <Recovery />
+      case 'users':      return <Users />
+      case 'groups':     return <Groups />
+      case 'computers':  return <Computers />
+      case 'policies':   return <Policies />
+      case 'alerts':     return <Alerts />
+      case 'auditlogs':  return <AuditLogs />
+      case 'reputation': return <Reputation />
+      case 'recovery':   return <Recovery />
+      case 'settings': return <Settings />
+      case 'dids':     return <DIDs />
       default:
         return (
           <div className="activity-section">

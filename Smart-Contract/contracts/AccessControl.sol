@@ -7,6 +7,7 @@ import "./DIDRegistry.sol";
  * @title AccessControl
  * @notice RBAC on-chain modifiable pour DecentrAccess
  * @dev R2: SuperAdminTransferred event, R3: changeRole atomique, R4: validRole modifier, R5: transferSuperAdmin protégé
+ * @dev B6: Bootstrap Mode — grantRole/revokeRole/changeRole passent par PolicyEngine une fois 3 admins créés
  */
 contract AccessControl {
 
@@ -36,12 +37,18 @@ contract AccessControl {
     address public policyEngineAddress;
     bool public superAdminTransferLocked = true;
 
+    // B6: Bootstrap Mode
+    uint256 public constant BOOTSTRAP_THRESHOLD = 3;
+    bool public bootstrapMode = true;
+
     // Events
     event RoleGranted(address indexed account, bytes32 indexed role, address indexed grantedBy, uint256 timestamp);
     event RoleRevoked(address indexed account, bytes32 indexed role, address indexed revokedBy, uint256 timestamp);
     event PermissionSet(bytes32 indexed role, string action, bool allowed, uint256 timestamp);
     // R2: Event dédié pour transfer SUPER_ADMIN
     event SuperAdminTransferred(address indexed oldAdmin, address indexed newAdmin, uint256 timestamp);
+    // B6: Event fermeture bootstrap
+    event BootstrapEnded(uint256 timestamp, uint256 adminCount);
 
     // Modifiers
     modifier onlySuperAdmin() {
@@ -91,16 +98,25 @@ contract AccessControl {
 
     /**
      * @notice Attribue un rôle à un compte
+     * @dev B6: En bootstrap → seul superAdmin. Hors bootstrap → seul PolicyEngine.
      * @dev R4: validRole modifier vérifie que le rôle est valide
      */
-    function grantRole(address _account, bytes32 _role) 
-        external 
-        onlySuperAdmin 
-        hasActiveDID(_account) 
+    function grantRole(address _account, bytes32 _role)
+        external
+        hasActiveDID(_account)
         validRole(_role)
     {
-        require(_roles[_account].grantedAt == 0 || !_roles[_account].active, 
-            "AccessControl: already has active role");
+        // B6: Contrôle d'accès selon le mode
+        if (bootstrapMode) {
+            require(msg.sender == superAdmin, "AccessControl: not SUPER_ADMIN");
+        } else {
+            require(msg.sender == policyEngineAddress, "AccessControl: only PolicyEngine");
+        }
+
+        require(
+            _roles[_account].grantedAt == 0 || !_roles[_account].active,
+            "AccessControl: already has active role"
+        );
 
         _roles[_account] = RoleData({
             role: _role,
@@ -111,12 +127,26 @@ contract AccessControl {
         _roleMembers[_role].push(_account);
 
         emit RoleGranted(_account, _role, msg.sender, block.timestamp);
+
+        // B6: Fermeture automatique du bootstrap quand 3 admins créés
+        if (_role == ADMIN && _roleMembers[ADMIN].length >= BOOTSTRAP_THRESHOLD) {
+            bootstrapMode = false;
+            emit BootstrapEnded(block.timestamp, _roleMembers[ADMIN].length);
+        }
     }
 
     /**
      * @notice Révoque le rôle d'un compte
+     * @dev B6: En bootstrap → seul superAdmin. Hors bootstrap → seul PolicyEngine.
      */
-    function revokeRole(address _account) external onlySuperAdmin {
+    function revokeRole(address _account) external {
+        // B6: Contrôle d'accès selon le mode
+        if (bootstrapMode) {
+            require(msg.sender == superAdmin, "AccessControl: not SUPER_ADMIN");
+        } else {
+            require(msg.sender == policyEngineAddress, "AccessControl: only PolicyEngine");
+        }
+
         require(_roles[_account].active, "AccessControl: no active role");
         require(_account != superAdmin, "AccessControl: cannot revoke SUPER_ADMIN self");
 
@@ -130,14 +160,21 @@ contract AccessControl {
 
     /**
      * @notice R3: Change le rôle d'un compte en une seule transaction
+     * @dev B6: En bootstrap → seul superAdmin. Hors bootstrap → seul PolicyEngine.
      * @dev Évite l'état temporaire sans rôle entre revoke + grant
      */
-    function changeRole(address _account, bytes32 _newRole) 
-        external 
-        onlySuperAdmin 
+    function changeRole(address _account, bytes32 _newRole)
+        external
         hasActiveDID(_account)
         validRole(_newRole)
     {
+        // B6: Contrôle d'accès selon le mode
+        if (bootstrapMode) {
+            require(msg.sender == superAdmin, "AccessControl: not SUPER_ADMIN");
+        } else {
+            require(msg.sender == policyEngineAddress, "AccessControl: only PolicyEngine");
+        }
+
         require(_roles[_account].active, "AccessControl: no active role");
         require(_account != superAdmin, "AccessControl: cannot change SUPER_ADMIN role");
 
@@ -264,29 +301,34 @@ contract AccessControl {
     }
 
     function _setDefaultPermissions() internal {
-        // SUPER_ADMIN — tout
-        string[11] memory allActions = [
+        // SUPER_ADMIN — tout (actions AD + gouvernance + rôles B6)
+        string[18] memory allActions = [
             "CREATE_USER", "DELETE_USER", "MODIFY_USER", "RESET_PASSWORD",
             "CREATE_GROUP", "MODIFY_GROUP", "ADD_COMPUTER",
-            "VIEW_USERS", "VIEW_LOGS", "MANAGE_POLICIES", "MANAGE_ROLES"
+            "VIEW_USERS", "VIEW_LOGS", "MANAGE_POLICIES", "MANAGE_ROLES",
+            "GRANT_OPERATOR", "GRANT_ADMIN", "GRANT_AUDITOR",
+            "REVOKE_ROLE", "ACTIVATE_USER", "DISABLE_USER", "ENABLE_USER"
         ];
         for (uint i = 0; i < allActions.length; i++) {
             _permissions[SUPER_ADMIN][allActions[i]] = true;
         }
 
-        // ADMIN — CRUD + view
-        string[9] memory adminActions = [
+        // ADMIN — CRUD + view + gestion des rôles B6
+        string[16] memory adminActions = [
             "CREATE_USER", "DELETE_USER", "MODIFY_USER", "RESET_PASSWORD",
             "CREATE_GROUP", "MODIFY_GROUP", "ADD_COMPUTER",
-            "VIEW_USERS", "VIEW_LOGS"
+            "VIEW_USERS", "VIEW_LOGS",
+            "GRANT_OPERATOR", "GRANT_ADMIN", "GRANT_AUDITOR",
+            "REVOKE_ROLE", "ACTIVATE_USER", "DISABLE_USER", "ENABLE_USER"
         ];
         for (uint i = 0; i < adminActions.length; i++) {
             _permissions[ADMIN][adminActions[i]] = true;
         }
 
-        // OPERATOR — modify + reset + view
-        string[4] memory opActions = [
-            "MODIFY_USER", "RESET_PASSWORD", "VIEW_USERS", "VIEW_LOGS"
+        // OPERATOR — modify + reset + view + activer/désactiver comptes
+        string[6] memory opActions = [
+            "MODIFY_USER", "RESET_PASSWORD", "VIEW_USERS", "VIEW_LOGS",
+            "DISABLE_USER", "ENABLE_USER"
         ];
         for (uint i = 0; i < opActions.length; i++) {
             _permissions[OPERATOR][opActions[i]] = true;

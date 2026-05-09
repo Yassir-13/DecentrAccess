@@ -31,25 +31,64 @@ export async function handleAction(data) {
     }
     console.log(`[Action] ✅ Signature vérifiée`)
 
-    // ═══ 3. Élection ═══
+    // ═══ 3. Élection — robuste (tâche 2-7) ═══
     const actionHash = data.actionHash
-    let executor = null
+    const myAddress  = blockchain.wallet.address.toLowerCase()
+    let executor     = null
+    let electionFailed = false
 
     try {
       executor = await blockchain.agentRegistry.electExecutor(actionHash)
     } catch (err) {
-      console.warn(`[Action] Élection impossible :`, err.message)
-    }
-
-    const myAddress = blockchain.wallet.address.toLowerCase()
-
-    if (executor && executor.toLowerCase() !== myAddress) {
-      console.log(`[Action] Non élu — executor: ${executor} — skip`)
+      // P7 fix : on ne fait plus de fallback silencieux sur hasLDAP
+      // On log l'erreur et on broadcast l'échec d'élection
+      electionFailed = true
+      console.error(`[Action] ❌ Élection échouée :`, err.message)
+      broadcastResult({
+        status:     'election_failed',
+        error:      `Élection impossible : ${err.message}`,
+        actionType: data.actionType,
+        actionHash
+      })
       return
     }
 
-    if (!executor && !config.hasLDAP) {
-      console.log(`[Action] Pas d'accès LDAP — skip`)
+    if (executor.toLowerCase() !== myAddress) {
+      // Vérifier si l'agent élu est en ligne — sinon on prend le relais
+      let electedIsOnline = false
+      try {
+        electedIsOnline = await blockchain.agentRegistry.isAgentOnline(executor)
+      } catch (_) {}
+
+      if (electedIsOnline) {
+        console.log(`[Action] Non élu — executor: ${executor} (en ligne) — skip`)
+        return
+      }
+
+      // L'élu est hors ligne — on prend le relais si on a LDAP
+      if (!config.hasLDAP) {
+        console.warn(`[Action] ⚠️ Élu hors ligne, mais cet agent n'a pas LDAP — abandon`)
+        broadcastResult({
+          status:     'failed',
+          error:      `Agent élu (${executor.slice(0,10)}…) hors ligne, aucun agent LDAP disponible`,
+          actionType: data.actionType,
+          actionHash
+        })
+        return
+      }
+
+      console.warn(`[Action] ⚠️ Élu ${executor.slice(0,10)}… hors ligne — prise en charge par cet agent`)
+    }
+
+    // Élu mais pas d'accès LDAP → on ne peut pas exécuter
+    if (!config.hasLDAP) {
+      console.warn(`[Action] ⚠️ Élu mais hasLDAP=false — impossible d'exécuter`)
+      broadcastResult({
+        status:     'failed',
+        error:      'Agent élu sans accès LDAP',
+        actionType: data.actionType,
+        actionHash
+      })
       return
     }
 
@@ -114,11 +153,11 @@ export async function handleAction(data) {
   }
 }
 
-// ═══ Exécution LDAP réelle ═══
+// ═══ Exécution LDAP ═══
 async function executeAction(data) {
   console.log(`[LDAP] Exécution : ${data.actionType}`)
 
-  // Si pas d'accès LDAP → mock
+  // Mode mock pour les agents sans accès LDAP (tests locaux)
   if (!config.hasLDAP) {
     console.log(`[LDAP] Mode mock (hasLDAP=false)`)
     return { success: true, details: `Mock : ${data.actionType}` }
@@ -126,8 +165,22 @@ async function executeAction(data) {
 
   try {
     switch (data.actionType) {
+
+      // ── Users ──────────────────────────────────────
       case 'CREATE_USER': {
         const res = await ldap.createUser(data.payload)
+        return { success: true, details: res }
+      }
+      case 'ACTIVATE_USER': {
+        const res = await ldap.activateUser(data.payload)
+        return { success: true, details: res }
+      }
+      case 'DISABLE_USER': {
+        const res = await ldap.disableUser(data.payload)
+        return { success: true, details: res }
+      }
+      case 'ENABLE_USER': {
+        const res = await ldap.enableUser(data.payload)
         return { success: true, details: res }
       }
       case 'DELETE_USER': {
@@ -142,10 +195,21 @@ async function executeAction(data) {
         const res = await ldap.resetPassword(data.payload)
         return { success: true, details: res }
       }
+
+      // ── Groups ─────────────────────────────────────
       case 'CREATE_GROUP': {
         const res = await ldap.createGroup(data.payload)
         return { success: true, details: res }
       }
+      case 'ADD_TO_GROUP': {
+        const res = await ldap.addMemberToGroup(data.payload)
+        return { success: true, details: res }
+      }
+      case 'REMOVE_FROM_GROUP': {
+        const res = await ldap.removeMemberFromGroup(data.payload)
+        return { success: true, details: res }
+      }
+
       default:
         console.warn(`[LDAP] Type inconnu : ${data.actionType}`)
         return { success: false, error: `Action inconnue : ${data.actionType}` }

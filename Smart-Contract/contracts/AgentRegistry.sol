@@ -29,7 +29,7 @@ contract AgentRegistry {
     address[] private _activeAgents;
     address[] private _executors;
     
-    uint256 public constant HEARTBEAT_TIMEOUT = 5 minutes;
+    uint256 public constant HEARTBEAT_TIMEOUT = 10 minutes;
     uint256 public constant FAILOVER_TIMEOUT  = 30 seconds;
 
     // Events

@@ -1,7 +1,7 @@
 // Agents/src/p2p/node.js
 import { createLibp2p } from 'libp2p'
 import { tcp } from '@libp2p/tcp'
-import { webSockets } from '@libp2p/websockets'       // ← nouveau : accepte les browsers
+import { webSockets } from '@libp2p/websockets'
 import { mdns } from '@libp2p/mdns'
 import { gossipsub } from '@chainsafe/libp2p-gossipsub'
 import { noise } from '@chainsafe/libp2p-noise'
@@ -21,13 +21,13 @@ export async function initP2P() {
   node = await createLibp2p({
     addresses: {
       listen: [
-        '/ip4/0.0.0.0/tcp/0',           // TCP pour les autres agents Node.js
-        '/ip4/0.0.0.0/tcp/9000/ws'       // WebSocket pour le Dashboard browser
+        '/ip4/0.0.0.0/tcp/0',
+        '/ip4/0.0.0.0/tcp/9000/ws'
       ]
     },
     transports: [
       tcp(),
-      webSockets()                        // ← accepte les connexions WS
+      webSockets()
     ],
     peerDiscovery: [mdns()],
     connectionEncryption: [noise()],
@@ -60,13 +60,26 @@ export async function initP2P() {
     console.log(`[P2P] Pair connecté : ${evt.detail.toString()}`)
   })
 
+  node.addEventListener('peer:disconnect', (evt) => {
+    console.warn(`[P2P] Pair déconnecté : ${evt.detail?.toString()}`)
+  })
+
+  // ← Nouveau : capture les erreurs du nœud sans crasher
+  node.addEventListener('error', (evt) => {
+    console.warn(`[P2P] Erreur nœud (ignorée) :`, evt.detail?.message || evt.detail)
+  })
+
   return node
 }
 
 export async function publish(topic, data) {
   if (!node) throw new Error('P2P non initialisé')
-  const msg = Buffer.from(JSON.stringify(data))
-  await node.services.pubsub.publish(topic, msg)
+  try {
+    const msg = Buffer.from(JSON.stringify(data))
+    await node.services.pubsub.publish(topic, msg)
+  } catch (err) {
+    console.warn(`[P2P] Erreur publish (ignorée) :`, err.message)
+  }
 }
 
 export function subscribe(topic, handler) {

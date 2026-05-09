@@ -1,0 +1,1 @@
+{"actionHash":"0x24b1f3ce5956f2c0cdd24ac675df67d14d18f20580a04796b45d4ccf02cf8e75","actionType":"DELETE_USER","payload":{"username":"A.Bzioui"},"signer":"0xDeAC0180403484aA416f522077FeCEb1cDF87a00","executor":"0x7df0b466a2ac9fe1fbfe4e08fdd7f6a7ddc66fb0","result":{"success":true,"details":{"success":true}},"timestamp":1778205138896,"network":"geth-poa-1337"}

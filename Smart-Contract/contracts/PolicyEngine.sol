@@ -8,6 +8,7 @@ import "./AccessControl.sol";
  * @title PolicyEngine
  * @notice Politiques on-chain + Multi-signature + Vote pour DecentrAccess
  * @dev R6: executeAction restreint, R7: expiryPeriod configurable, R8: removeApproval, R9: getAllPolicyTypes
+ * @dev B6: executeRoleAction() — exécute une décision de rôle après multi-sig
  */
 contract PolicyEngine {
 
@@ -53,6 +54,8 @@ contract PolicyEngine {
     event ApprovalRemoved(bytes32 indexed actionId, address indexed approver, uint8 remainingApprovals);
     event ActionExecuted(bytes32 indexed actionId, address indexed executor, uint256 timestamp);
     event ActionCancelled(bytes32 indexed actionId, address indexed cancelledBy, uint256 timestamp);
+    // B6: Event pour exécution d'une action de rôle
+    event RoleActionExecuted(bytes32 indexed actionId, string actionType, address indexed target, bytes32 role, address indexed executor);
 
     constructor(address _didRegistry, address _accessControl) {
         didRegistry   = DIDRegistry(_didRegistry);
@@ -66,6 +69,20 @@ contract PolicyEngine {
         _createPolicy("CREATE_GROUP",   AccessControl(_accessControl).ADMIN(), false, 0, 0, 0);
         _createPolicy("REVOKE_ADMIN",   AccessControl(_accessControl).SUPER_ADMIN(), true, 2, 12 hours, 48 hours);
         _createPolicy("DEACTIVATE_DID", AccessControl(_accessControl).SUPER_ADMIN(), true, 2, 12 hours, 48 hours);
+
+        // B6: Politiques de gestion des rôles
+        // GRANT_OPERATOR : 1 seule signature ADMIN suffit
+        _createPolicy("GRANT_OPERATOR", AccessControl(_accessControl).ADMIN(), true, 1, 0, 0);
+        // GRANT_ADMIN : 2 signatures ADMIN requises (action critique)
+        _createPolicy("GRANT_ADMIN",    AccessControl(_accessControl).ADMIN(), true, 2, 0, 0);
+        // GRANT_AUDITOR : 1 seule signature ADMIN suffit
+        _createPolicy("GRANT_AUDITOR",  AccessControl(_accessControl).ADMIN(), true, 1, 0, 0);
+        // REVOKE_ROLE : 2 signatures ADMIN requises
+        _createPolicy("REVOKE_ROLE",    AccessControl(_accessControl).ADMIN(), true, 2, 0, 0);
+        // ACTIVATE_USER / DISABLE_USER / ENABLE_USER : 1 signature ADMIN
+        _createPolicy("ACTIVATE_USER",  AccessControl(_accessControl).ADMIN(), true, 1, 0, 0);
+        _createPolicy("DISABLE_USER",   AccessControl(_accessControl).OPERATOR(), true, 1, 0, 0);
+        _createPolicy("ENABLE_USER",    AccessControl(_accessControl).OPERATOR(), true, 1, 0, 0);
     }
 
     // ═══════════ Gestion des Politiques ═══════════
@@ -207,7 +224,7 @@ contract PolicyEngine {
     }
 
     /**
-     * @notice Exécute une action approuvée
+     * @notice Exécute une action approuvée (retourne les données pour l'agent)
      * @dev R6: Seuls les approvers peuvent exécuter
      */
     function executeAction(bytes32 _actionId) external returns (bytes memory) {
@@ -245,6 +262,53 @@ contract PolicyEngine {
         emit ActionExecuted(_actionId, msg.sender, block.timestamp);
 
         return action.actionData;
+    }
+
+    /**
+     * @notice B6: Exécute une action de rôle après validation multi-sig
+     * @dev Appelle directement AccessControl.grantRole() ou revokeRole()
+     * @dev À utiliser pour : GRANT_OPERATOR, GRANT_ADMIN, GRANT_AUDITOR, REVOKE_ROLE
+     * @param _actionId ID de l'action en attente
+     */
+    function executeRoleAction(bytes32 _actionId) external {
+        PendingAction storage action = _pendingActions[_actionId];
+        require(action.createdAt != 0, "PolicyEngine: action not found");
+        require(!action.executed, "PolicyEngine: already executed");
+        require(!action.cancelled, "PolicyEngine: cancelled");
+        require(block.timestamp < action.expiresAt, "PolicyEngine: expired");
+
+        // Vérifier que l'appelant est un des approvers
+        bool isApprover = false;
+        for (uint i = 0; i < action.approvers.length; i++) {
+            if (action.approvers[i] == msg.sender) {
+                isApprover = true;
+                break;
+            }
+        }
+        require(isApprover, "PolicyEngine: only approvers can execute");
+
+        Policy storage policy = _policies[action.actionType];
+        require(
+            action.approvers.length >= policy.requiredSignatures,
+            "PolicyEngine: not enough signatures"
+        );
+
+        action.executed = true;
+
+        // Décoder (target, role) depuis actionData
+        // Pour REVOKE_ROLE : actionData = abi.encode(target, bytes32(0))
+        // Pour GRANT_* : actionData = abi.encode(target, roleBytes32)
+        (address target, bytes32 role) = abi.decode(action.actionData, (address, bytes32));
+
+        if (keccak256(bytes(action.actionType)) == keccak256(bytes("REVOKE_ROLE"))) {
+            accessControl.revokeRole(target);
+            emit RoleActionExecuted(_actionId, action.actionType, target, bytes32(0), msg.sender);
+        } else {
+            accessControl.grantRole(target, role);
+            emit RoleActionExecuted(_actionId, action.actionType, target, role, msg.sender);
+        }
+
+        emit ActionExecuted(_actionId, msg.sender, block.timestamp);
     }
 
     /**
